@@ -5397,6 +5397,138 @@ describe("SourceProcessor — renderEmbeddedSource", () => {
 		]);
 	});
 
+	it("offers an event handler attribute and writes the answer back", () => {
+		const html = '<button onclick="  foo( 1 , 2 )  ">x</button>';
+
+		expect(offered(html)).toEqual([
+			["javascript", "stylesheet", "  foo( 1 , 2 )  "]
+		]);
+		expect(minify(html, (source) => source.replace(/\s+/g, ""))).toBe(
+			"<button onclick=foo(1,2)>x</button>"
+		);
+	});
+
+	it("offers a handler only where the name is one on that element", () => {
+		// `onunload` is a handler on `<body>` and text a script may read anywhere
+		// else, so only one of these two holds JavaScript.
+		expect(offered('<div onunload="a( 1 )">x</div>')).toEqual([]);
+		expect(offered('<body onunload="a( 1 )">x</body>')).toEqual([
+			["javascript", "stylesheet", "a( 1 )"]
+		]);
+		// Foreign content carries the global ones too.
+		expect(offered('<svg><circle onclick="f( 1 )"/></svg>')[0]).toEqual([
+			"javascript",
+			"stylesheet",
+			"f( 1 )"
+		]);
+	});
+
+	it("never offers a handler that is a function body rather than a script", () => {
+		// `onsubmit="return false"` is a function body: nothing that minifies a
+		// script parses it, so it is left exactly as written.
+		const html = '<form onsubmit="return  false"><input></form>';
+
+		expect(offered(html)).toEqual([]);
+		expect(minify(html, () => "SHOULD NOT REACH")).toBe(
+			'<form onsubmit="return  false"><input></form>'
+		);
+	});
+
+	it("never offers an empty handler", () => {
+		// A reference spelling whitespace stays as written, so nothing is offered
+		// for it either — writing it out would make the attribute read as empty.
+		expect(
+			offered('<button onclick="  " onmouseover="" onfocus="&#32;">x</button>')
+		).toEqual([]);
+	});
+
+	it("keeps a minified handler through the print's own re-parse", () => {
+		// The adoption agency makes this print verify itself by re-parsing, which
+		// reads a renderer's answer as a value the print got wrong unless told.
+		expect(
+			minify('<p>1<b>2<i onclick="f( 1 )">3</b>4</i>5</p>', (source) =>
+				source.replace(/\s+/g, "")
+			)
+		).toBe('<p>1<b>2<i onclick=f(1)>3</i></b><i onclick="f( 1 )">4</i>5');
+	});
+
+	it("offers a handler repeated in one document once per occurrence", () => {
+		// The parse each is held to is memoized on the text, the offer is not: a
+		// renderer is handed every handler the document holds.
+		expect(
+			offered('<p onclick="f( 1 )">a</p><p onclick="f( 1 )">b</p>')
+		).toEqual([
+			["javascript", "stylesheet", "f( 1 )"],
+			["javascript", "stylesheet", "f( 1 )"]
+		]);
+	});
+
+	it("offers a handler carrying character references decoded", () => {
+		// `&amp;&amp;` is an operator to JavaScript rather than an entity, and the
+		// answer is escaped back for the value it lands in.
+		const html = '<button onclick="a &amp;&amp; b( 1 )">x</button>';
+
+		expect(offered(html)).toEqual([
+			["javascript", "stylesheet", "a && b( 1 )"]
+		]);
+		expect(minify(html, (source) => source.replace(/\s+/g, ""))).toBe(
+			"<button onclick=a&&amp;b(1)>x</button>"
+		);
+	});
+
+	it("quotes a handler answer that needs it", () => {
+		expect(
+			minify('<button onclick="f( &quot;a&quot; )">x</button>', (source) =>
+				source.replace(/\s+/g, "")
+			)
+		).toBe("<button onclick='f(\"a\")'>x</button>");
+	});
+
+	it("keeps a handler the renderer answered longer than the source", () => {
+		// A minifier ends a statement it was handed without one, so the shortest
+		// handlers come back a byte longer than they were written.
+		expect(minify('<p onclick="x">a</p>', (source) => `${source};`)).toBe(
+			"<p onclick=x>a"
+		);
+	});
+
+	it("leaves a handler alone where the renderer declines it", () => {
+		// Exactly what an untapped run writes, down to the quoting — and a renderer
+		// answering with what it was handed spells the same thing.
+		const html = '<button onclick="foo( 1 )" title="  a  ">x</button>';
+		const written = '<button onclick="foo( 1 )" title="  a  ">x</button>';
+
+		expect(minify(html, () => undefined)).toBe(minify(html));
+		expect(minify(html, () => undefined)).toBe(written);
+		expect(minify(html, (source) => source)).toBe(written);
+	});
+
+	it("answers a handler on a deferred print, `/>`-spelled tag included", async () => {
+		const answer = (/** @type {string} */ source) => source.replace(/\s+/g, "");
+
+		expect(
+			await deferred('<button onclick="  foo( 1 , 2 )  ">x</button>', answer)
+		).toEqual({
+			code: "<button onclick=foo(1,2)>x</button>",
+			offered: [["javascript", "stylesheet", "  foo( 1 , 2 )  "]]
+		});
+		// A foreign `/>` reads back whether the last value ended unquoted, which an
+		// answer that has not arrived cannot decide: the source's quoting stands.
+		expect(
+			(await deferred('<svg><circle onclick="f( 1 )"/></svg>', answer)).code
+		).toBe('<svg><circle onclick="f(1)"/></svg>');
+		// There the answer is written only where it is shorter than the source: the
+		// quoting is already decided, so an equal one would only be a rewrite.
+		expect(
+			(
+				await deferred(
+					'<svg><circle onclick="f(1)"/></svg>',
+					(source) => source
+				)
+			).code
+		).toBe('<svg><circle onclick="f(1)"/></svg>');
+	});
+
 	it("names html as the host of every body it offers", () => {
 		const hosts = new Set();
 		minify("<style>.a{color:red}</style><script>var a=1</script>", (s, i) => {

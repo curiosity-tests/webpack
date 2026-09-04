@@ -1,0 +1,10 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`ConfigCacheTestCases html minify-inline-handlers exported tests should minify the script an event handler attribute holds 1`] = `
+"<div>
+	<button onclick=\\"var total=3;report(total);\\">go</button>
+	<form onsubmit=\\"return  false\\"><input onfocus='track(\\"focus\\");'></form>
+	<div onunload=\\"  not( 'a handler here' )  \\">x</div>
+</div>
+"
+`;

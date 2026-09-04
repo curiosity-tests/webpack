@@ -10567,7 +10567,7 @@ declare interface HtmlProcessOptions {
 	deferEmbeddedSource?: DeferredEmbeddedSource[];
 
 	/**
-	 * renders each nested body this document embeds — an inline `<style>`, every `style=""` (handed over as a whole stylesheet, SVG's and MathML's included), a `<script>` holding JSON or JavaScript, an `<svg>` subtree, and the document an `<iframe srcdoc>` holds (decoded, and written back escaped). Replaces the built-in CSS and JSON minifiers wherever it answers, and returning anything but text falls back to them; it is the only way inline JavaScript, SVG and a nested document are reached at all
+	 * renders each nested body this document embeds — an inline `<style>`, every `style=""` (handed over as a whole stylesheet, SVG's and MathML's included), a `<script>` holding JSON or JavaScript, every event handler attribute holding a whole script (one whose top level is a `return` is a function body, which nothing minifying a script can parse), an `<svg>` subtree, and the document an `<iframe srcdoc>` holds (decoded, and written back escaped). Replaces the built-in CSS and JSON minifiers wherever it answers, and returning anything but text falls back to them; it is the only way inline JavaScript, SVG and a nested document are reached at all
 	 */
 	renderEmbeddedSource?: (
 		source: string,
