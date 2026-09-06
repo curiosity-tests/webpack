@@ -32,7 +32,7 @@ permissions:
 env:
   # The one variable that separates the arms: on baseline, action-checkout
   # skips its Set up Chalk step entirely.
-  CHALK_ON: ${{ github.event_name == 'workflow_dispatch' && inputs.leg != 'baseline' }}
+  CHALK_ON: ${{ inputs.leg == 'instrumented' }}
 
 run-name: "Github Actions ${{ inputs.leg || 'push' }} ${{ inputs.racecar_run }}"
 
@@ -92,7 +92,7 @@ jobs:
           yarn validate:types
 
       - name: Validate changeset format
-        if: github.event_name == 'pull_request'
+        if: ${{ 'push' == 'pull_request' }}
         run: |
           yarn validate:changeset
 
